@@ -2,24 +2,16 @@ import socket
 from Crypto.Random import get_random_bytes
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
-
+import struct
 from generateMAC import MAC
 import sys
 from threading import Thread
 from datetime import datetime
-import os
-import base64
 
-HOST = "127.0.0.1"  # Standard loopback interface address (localhost)
-PORT = 6000  # Port to listen on (non-privileged ports are > 1023)
+HOST = "127.0.0.1"
+PORT = 6000
 LOG_FILE = "bank_transactions.log"
-MAX_CLIENTS = 3  # Number of ATM clients that can connect to the bank server
-USERS = {
-    "Avinandan": {"pswd": "Avinandan", "balance": 1000},
-    "Samiul": {"pswd": "Samiul", "balance": 1000},
-    "Raiyan": {"pswd": "Raiyan", "balance": 1000},
-    "Roy": {"pswd": "Roy", "balance": 1000}
-}
+MAX_CLIENTS = 1
 
 
 class Server:
@@ -34,11 +26,16 @@ class Server:
         self.MACKey = None
         self.symKey = None
 
-    def new_client(self, conn, addr):
+        self.USERS = {
+            "Avinandan": {"pswd": "Avinandan", "balance": 1000},
+            "Samiul": {"pswd": "Samiul", "balance": 1000},
+            "Raiyan": {"pswd": "Raiyan", "balance": 1000},
+            "Roy": {"pswd": "Roy", "balance": 1000}
+        }
 
+    def new_client(self, conn, addr):
         try:
             print(f"Connected by {addr}")
-            # Recieve client id
             while True:
                 client_Identity = conn.recv(1024)
                 if client_Identity:
@@ -50,7 +47,6 @@ class Server:
             print("[NK1||IDK]:\n", challenge)
             conn.send(challenge.encode())
 
-            # Message 2, challenge response
             while True:
                 challenge_resp = conn.recv(1024)
                 if challenge_resp:
@@ -63,10 +59,8 @@ class Server:
                 print("Disconnected")
                 return
 
-            # Challenge response
             conn.send(NA.encode())
 
-            # Key transfer
             KA = get_random_bytes(16)
             final_message = KA.hex()
             print("Signature: \n", final_message)
@@ -87,130 +81,154 @@ class Server:
             conn.close()
             print("Disconnected")
 
-    def broadcast(self, conn, connections, message):
-        for c in connections:
-            c.send(message)
-        return
-    
-    def log_transaction(self, d_msg, e_msg=None):
-        today = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        with open(LOG_FILE, 'a') as f:
-            if e_msg:
-                f.write(f"{today} - {e_msg}\n")
-            f.write(f"{today} - {d_msg}\n")
-    
     def send_msg(self, conn, msg):
-        msg_byte = msg.encode() + '||'.encode() + get_random_bytes(16)
+        assert self.gen_MAC is not None
+        msg_byte = msg.encode() + b'||' + get_random_bytes(16)
         message, tag = self.gen_MAC.encrypt(msg_byte)
-        print('Encrypted Message:' + str(message))
-        conn.send(message + '||'.encode() + tag)
-    
+        print('Encrypted Message:', message)
+        conn.send(message + b'||' + tag)
+
     def receive_msg(self, conn):
         received = conn.recv(1024)
-
         if received:
-            print('Encrypted Message Received:', received)
-            split_message = received.split('||'.encode())
-            plaintext = self.gen_MAC.decrypt(split_message[0], split_message[1])
-            msg = plaintext.split(
-                '||'.encode())[0].decode().split('||')[0]
-            
-            return received, msg
-        
-        return False
-    
+            print('[KDC] Encrypted Message Received:', received)
+            try:
+                split_message = received.split(b'||')
+                plaintext = self.gen_MAC.decrypt(split_message[0], split_message[1])
+                msg = plaintext.split(b'||')[0].decode()
+                print("[KDC] Decrypted message:", msg)
+                return received, msg
+            except Exception as e:
+                print("[KDC ERROR] Failed to decrypt message:", e)
+                conn.close()
+                return None, None
+        return None, None
+
+    def log_transaction(self, username=None, action=None, raw=None):
+        today = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        if username and action:
+            log_line = f"{username} | {action} | {today}"
+        elif raw:
+            log_line = f"{raw} | {today}"
+        else:
+            log_line = f"UNKNOWN | {today}"
+
+        # Print audit log to command line 
+        print(f"[AUDIT LOG] {log_line}")
+
+        # Encrypt and save to file
+        cipher = AES.new(self.symKey, AES.MODE_ECB)
+        padded = pad(log_line.encode(), AES.block_size)
+        encrypted_log = cipher.encrypt(padded)
+
+        with open(LOG_FILE, 'ab') as f:
+            f.write(struct.pack('I', len(encrypted_log)))
+            f.write(encrypted_log)
+
+        print("[KDC] Encrypted log entry written.")
+
     def login(self, username, password):
         try:
-            if USERS[username]["pswd"] == password:
+            if self.USERS[username]["pswd"] == password:
                 print(f"{username} has successfully logged in.\n")
                 return True
             else:
                 print("Password is incorrect.")
         except KeyError:
             print("Username not found.")
-            
         return False
 
     def handle_transactions(self, conn, connections):
-        _, msg = self.receive_msg(conn)
-        username, password = str(msg).split(':')
-        while not self.login(username, password):
-            self.send_msg(conn, "failed")
-            _, msg = self.receive_msg(conn)
-            username, password = str(msg[0]).split(':')
+        try:
+            raw_msg = conn.recv(1024)
+            try:
+                print("[KDC] Attempting to decrypt received login...")
+                split_message = raw_msg.split(b'||')
+                plaintext = self.gen_MAC.decrypt(split_message[0], split_message[1])
+                msg = plaintext.split(b'||')[0].decode()
+                print("[KDC] Decrypted login message:", msg)
+            except Exception as e:
+                print("[KDC] Failed to decrypt. Fallback to plaintext. Reason:", e)
+                msg = raw_msg.decode()
+                print("[KDC] Plaintext login received:", msg)
 
-        self.send_msg(conn, "success")
-        self.log_transaction(d_msg=f"{username} has successfully logged in.")
+            username, password = msg.split(':')
+            while not self.login(username, password):
+                self.send_msg(conn, "failed")
+                _, msg = self.receive_msg(conn)
+                username, password = msg.split(':')
 
-        while (True):
-            received, msg = self.receive_msg(conn)
-            if received:
-                # Log the message
-                self.log_transaction(msg, str(received))
-                msg_tuple = msg.split(":")
-                if len(msg_tuple) > 1:
-                    action, amount = msg_tuple
+            self.send_msg(conn, "success")
+            self.log_transaction(username=username, action="logged in")
+
+            while True:
+                received, msg = self.receive_msg(conn)
+                if not msg:
+                    break
+                parts = msg.split(":")
+                action_str = msg
+
+                if len(parts) > 1:
+                    action, amount = parts
                     try:
                         amount = int(amount)
                         if amount < 0:
-                            self.send_msg(conn, "Amount should never be negative. Action failed.")
-                            self.log_transaction("Invalid Transaction\n", None)
+                            self.send_msg(conn, "Amount should never be negative.")
                             continue
                     except ValueError:
-                        raise ValueError("Amount received is not integer. This error should never occur~")
+                        self.send_msg(conn, "Invalid amount format.")
+                        continue
+
                     if action == "deposit":
-                        USERS[username]["balance"] += amount
+                        self.USERS[username]["balance"] += amount
                         self.send_msg(conn, f"You successfully deposited {amount}")
                     elif action == "withdraw":
-                        if USERS[username]["balance"] - amount >= 0:
-                            USERS[username]["balance"] -= amount
+                        if self.USERS[username]["balance"] >= amount:
+                            self.USERS[username]["balance"] -= amount
                             self.send_msg(conn, f"You successfully withdrew {amount}")
                         else:
-                            self.send_msg(conn, f"Insufficient funds.")
-                            self.log_transaction("Isufficient funds\n", None)
-
-                            continue
+                            self.send_msg(conn, "Insufficient funds.")
                     else:
-                        raise Exception("This action should never be received! (msg_tuple > 1)")
+                        self.send_msg(conn, "Unknown action.")
                 else:
-                    action = msg_tuple[0]
+                    action = parts[0]
                     if action == "balance":
-                        self.send_msg(conn, f"Your current balance is: " + str(USERS[username]["balance"]))
+                        current = self.USERS[username]["balance"]
+                        self.send_msg(conn, f"Your current balance is: {current}")
                     else:
-                        raise Exception("This action should never be received! (msg_tuple <= 1)")
-                    
+                        self.send_msg(conn, "Invalid request.")
 
-            
+                self.log_transaction(username=username, action=action_str)
+
+        except Exception as main_err:
+            print("[KDC ERROR] Transaction handling failed:", main_err)
+            conn.close()
 
     def distribute_protocol(self):
-        self.nonces_Seen = set()
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.s.bind((self.host, self.port))
         self.socket_init = True
         connections = []
         print("Waiting for Client...")
         self.s.listen()
-        
+
         for _ in range(MAX_CLIENTS):
             conn, addr = self.s.accept()
             connections.append(conn)
             try:
-                self.clients.append(
-                    Thread(target=self.new_client, args=(conn, addr)))
+                self.clients.append(Thread(target=self.new_client, args=(conn, addr)))
                 self.clients[-1].start()
                 self.clients[-1].join()
-
             except KeyboardInterrupt:
                 conn.close()
                 print("Disconnected")
+
         for conn in connections:
-            Thread(target=self.handle_transactions,
-                   args=(conn, connections)).start()
+            Thread(target=self.handle_transactions, args=(conn, connections)).start()
 
     def encrypt(self, Key, msg):
         cipher = AES.new(Key, AES.MODE_ECB)
-        ciphertext = cipher.encrypt(pad(msg.encode(), AES.block_size))
-        return ciphertext
+        return cipher.encrypt(pad(msg.encode(), AES.block_size))
 
 
 def main():
@@ -219,5 +237,4 @@ def main():
 
 
 if __name__ == "__main__":
-
     main()

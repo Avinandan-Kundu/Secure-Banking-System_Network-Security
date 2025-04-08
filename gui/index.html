@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Secure ATM Client</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>ATM Client</h1>
+        <div id="login-section">
+            <input type="text" id="username" placeholder="Username">
+            <input type="password" id="password" placeholder="Password">
+            <button onclick="login()">Login</button>
+        </div>
+        <div id="actions" style="display:none;">
+            <input type="number" id="amount" placeholder="Amount">
+            <button onclick="deposit()">Deposit</button>
+            <button onclick="withdraw()">Withdraw</button>
+            <button onclick="checkBalance()">Check Balance</button>
+        </div>
+        <p id="result"></p>
+    </div>
+    <script src="/static/script.js"></script>
+</body>
+</html>
