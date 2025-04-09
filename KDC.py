@@ -27,10 +27,10 @@ class Server:
         self.symKey = None
 
         self.USERS = {
-            "Avinandan": {"pswd": "Avinandan", "balance": 1000},
-            "Samiul": {"pswd": "Samiul", "balance": 1000},
-            "Raiyan": {"pswd": "Raiyan", "balance": 1000},
-            "Roy": {"pswd": "Roy", "balance": 1000}
+            "Client-A": {"pswd": "ClientA", "balance": 1000},
+            "Client-B": {"pswd": "ClientB", "balance": 1000},
+            "Client-C": {"pswd": "ClientC", "balance": 1000},
+            "Client-D": {"pswd": "ClientD", "balance": 1000}
         }
 
     def new_client(self, conn, addr):
