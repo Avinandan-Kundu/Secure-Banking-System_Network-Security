@@ -181,11 +181,11 @@ class Server:
 
                     if action == "deposit":
                         self.USERS[username]["balance"] += amount
-                        self.send_msg(conn, f"You successfully deposited {amount}")
+                        self.send_msg(conn, f"You successfully deposited: ${amount}")
                     elif action == "withdraw":
                         if self.USERS[username]["balance"] >= amount:
                             self.USERS[username]["balance"] -= amount
-                            self.send_msg(conn, f"You successfully withdrew {amount}")
+                            self.send_msg(conn, f"You successfully withdrew: ${amount}")
                         else:
                             self.send_msg(conn, "Insufficient funds.")
                     else:
@@ -194,7 +194,7 @@ class Server:
                     action = parts[0]
                     if action == "balance":
                         current = self.USERS[username]["balance"]
-                        self.send_msg(conn, f"Your current balance is: {current}")
+                        self.send_msg(conn, f"Your current balance is: ${current}")
                     else:
                         self.send_msg(conn, "Invalid request.")
 
