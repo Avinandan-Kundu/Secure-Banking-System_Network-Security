@@ -9,10 +9,10 @@ from threading import Thread
 from datetime import datetime
 from transaction_logger import transaction_log
 
-
 HOST = "127.0.0.1"
 PORT = 6000
-MAX_CLIENTS = 1
+LOG_FILE = "bank_transactions.log"
+MAX_CLIENTS = 3
 
 
 class Server:
@@ -28,9 +28,9 @@ class Server:
         self.symKey = None
 
         self.USERS = {
-            "Client-A": {"pswd": "ClientA", "balance": 1000},
-            "Client-B": {"pswd": "ClientB", "balance": 1000},
-            "Client-C": {"pswd": "ClientC", "balance": 1000},
+            "Client-A": {"pswd": "clienta", "balance": 1000},
+            "Client-B": {"pswd": "clientb", "balance": 1000},
+            "Client-C": {"pswd": "clientc", "balance": 1000},
             "Client-D": {"pswd": "ClientD", "balance": 1000}
         }
 
@@ -177,7 +177,6 @@ class Server:
                         self.send_msg(conn, "Invalid request.")
 
                 transaction_log(self.symKey, username=username, action=action_str)
-
 
         except Exception as main_err:
             print("[KDC ERROR] Transaction handling failed:", main_err)

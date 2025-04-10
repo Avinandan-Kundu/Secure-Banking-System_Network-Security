@@ -6,12 +6,11 @@ class ATMClient:
         self.host = host
         self.port = port
         self.sock = None
-        self.username = None  # Set during login
+        self.username = None  # Will be set during login
 
     def connect_and_authenticate(self, username, password):
         self.username = username
         print(f"[ATMClient-{self.username}] Connecting to bank server...")
-
         try:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.sock.connect((self.host, self.port))
