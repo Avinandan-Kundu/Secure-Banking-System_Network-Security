@@ -7,10 +7,11 @@ from generateMAC import MAC
 import sys
 from threading import Thread
 from datetime import datetime
+from transaction_logger import transaction_log
+
 
 HOST = "127.0.0.1"
 PORT = 6000
-LOG_FILE = "bank_transactions.log"
 MAX_CLIENTS = 1
 
 
@@ -104,29 +105,6 @@ class Server:
                 return None, None
         return None, None
 
-    def log_transaction(self, username=None, action=None, raw=None):
-        today = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        if username and action:
-            log_line = f"{username} | {action} | {today}"
-        elif raw:
-            log_line = f"{raw} | {today}"
-        else:
-            log_line = f"UNKNOWN | {today}"
-
-        # Print audit log to command line 
-        print(f"[AUDIT LOG] {log_line}")
-
-        # Encrypt and save to file
-        cipher = AES.new(self.symKey, AES.MODE_ECB)
-        padded = pad(log_line.encode(), AES.block_size)
-        encrypted_log = cipher.encrypt(padded)
-
-        with open(LOG_FILE, 'ab') as f:
-            f.write(struct.pack('I', len(encrypted_log)))
-            f.write(encrypted_log)
-
-        print("[KDC] Encrypted log entry written.")
-
     def login(self, username, password):
         try:
             if self.USERS[username]["pswd"] == password:
@@ -159,7 +137,7 @@ class Server:
                 username, password = msg.split(':')
 
             self.send_msg(conn, "success")
-            self.log_transaction(username=username, action="logged in")
+            transaction_log(self.symKey, username=username, action="logged in")
 
             while True:
                 received, msg = self.receive_msg(conn)
@@ -198,7 +176,8 @@ class Server:
                     else:
                         self.send_msg(conn, "Invalid request.")
 
-                self.log_transaction(username=username, action=action_str)
+                transaction_log(self.symKey, username=username, action=action_str)
+
 
         except Exception as main_err:
             print("[KDC ERROR] Transaction handling failed:", main_err)
