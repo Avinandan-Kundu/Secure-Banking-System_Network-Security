@@ -11,7 +11,7 @@ from datetime import datetime
 HOST = "127.0.0.1"
 PORT = 6000
 LOG_FILE = "bank_transactions.log"
-MAX_CLIENTS = 1
+MAX_CLIENTS = 3
 
 
 class Server:
@@ -27,10 +27,10 @@ class Server:
         self.symKey = None
 
         self.USERS = {
-            "Avinandan": {"pswd": "Avinandan", "balance": 1000},
-            "Samiul": {"pswd": "Samiul", "balance": 1000},
-            "Raiyan": {"pswd": "Raiyan", "balance": 1000},
-            "Roy": {"pswd": "Roy", "balance": 1000}
+            "Client-A": {"pswd": "clienta", "balance": 1000},
+            "Client-B": {"pswd": "clientb", "balance": 1000},
+            "Client-C": {"pswd": "clientc", "balance": 1000},
+            "Client-D": {"pswd": "ClientD", "balance": 1000}
         }
 
     def new_client(self, conn, addr):
@@ -181,11 +181,11 @@ class Server:
 
                     if action == "deposit":
                         self.USERS[username]["balance"] += amount
-                        self.send_msg(conn, f"You successfully deposited {amount}")
+                        self.send_msg(conn, f"You successfully deposited: ${amount}")
                     elif action == "withdraw":
                         if self.USERS[username]["balance"] >= amount:
                             self.USERS[username]["balance"] -= amount
-                            self.send_msg(conn, f"You successfully withdrew {amount}")
+                            self.send_msg(conn, f"You successfully withdrew: ${amount}")
                         else:
                             self.send_msg(conn, "Insufficient funds.")
                     else:
@@ -194,7 +194,7 @@ class Server:
                     action = parts[0]
                     if action == "balance":
                         current = self.USERS[username]["balance"]
-                        self.send_msg(conn, f"Your current balance is: {current}")
+                        self.send_msg(conn, f"Your current balance is: ${current}")
                     else:
                         self.send_msg(conn, "Invalid request.")
 
