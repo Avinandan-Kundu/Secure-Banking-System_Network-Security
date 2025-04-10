@@ -7,6 +7,7 @@ from generateMAC import MAC
 import sys
 from threading import Thread
 from datetime import datetime
+from transaction_logger import transaction_log
 
 HOST = "127.0.0.1"
 PORT = 6000
@@ -159,7 +160,7 @@ class Server:
                 username, password = msg.split(':')
 
             self.send_msg(conn, "success")
-            self.log_transaction(username=username, action="logged in")
+            transaction_log(self.symKey, username=username, action="logged in")
 
             while True:
                 received, msg = self.receive_msg(conn)
@@ -198,7 +199,7 @@ class Server:
                     else:
                         self.send_msg(conn, "Invalid request.")
 
-                self.log_transaction(username=username, action=action_str)
+                transaction_log(self.symKey, username=username, action=action_str)
 
         except Exception as main_err:
             print("[KDC ERROR] Transaction handling failed:", main_err)
